@@ -1,15 +1,33 @@
 import pytest
 import sys
 import os
+import math
 from io import StringIO
+from unittest.mock import patch
 
 # Para que encuentre los módulos de src y gramaticas
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.risco import RISCO
+from src.visitante_evaluador import (
+    _prim_sqrt,
+    _prim_exp,
+    _prim_log,
+    _prim_matmul,
+    _prim_matmulT,
+    _prim_matmulAdd,
+    _prim_lcg_seed,
+    _prim_lcg_next,
+    _LN2,
+)
+
+
+# ──────────────────────────────────────────────────────────────
+#  Helpers compartidos
+# ──────────────────────────────────────────────────────────────
 
 def ejecutar(codigo):
-    """Ejecuta código RISCO y captura lo que imprime"""
+    """Ejecuta código RISCO y captura lo que imprime."""
     captura = StringIO()
     sys.stdout = captura
     interprete = RISCO(modo_interactivo=True)
@@ -18,7 +36,43 @@ def ejecutar(codigo):
     return [l.strip() for l in captura.getvalue().strip().splitlines() if l.strip()]
 
 
-# Operaciones básicas 
+def ejecutar_con_input(codigo, entradas):
+    """
+    Igual que ejecutar() pero simula respuestas del usuario.
+    entradas: lista de strings, uno por cada input() que aparezca en el código.
+    """
+    captura = StringIO()
+    sys.stdout = captura
+    with patch('builtins.input', side_effect=entradas):
+        interprete = RISCO(modo_interactivo=True)
+        interprete._ejecutar_codigo(codigo)
+    sys.stdout = sys.__stdout__
+    return [l.strip() for l in captura.getvalue().strip().splitlines() if l.strip()]
+
+
+def cerca(a, b, rel=1e-9, abs_=1e-12):
+    """Igualdad aproximada con tolerancia mixta absoluta/relativa."""
+    return abs(a - b) <= max(abs_, rel * abs(b))
+
+
+def matrices_iguales(A, B, rel=1e-9):
+    """Comprueba dimensiones y valores de dos matrices."""
+    if len(A) != len(B):
+        return False
+    for fila_a, fila_b in zip(A, B):
+        if len(fila_a) != len(fila_b):
+            return False
+        for a, b in zip(fila_a, fila_b):
+            if not cerca(a, b, rel=rel):
+                return False
+    return True
+
+
+# ══════════════════════════════════════════════════════════════
+#  LENGUAJE RISCO — tests de integración vía el intérprete
+# ══════════════════════════════════════════════════════════════
+
+# ── Operaciones básicas ───────────────────────────────────────
 
 def test_suma():
     assert ejecutar("val x = 5\nval y = 3\nx + y\n") == ["> 8"]
@@ -30,8 +84,7 @@ def test_multiplicacion():
     assert ejecutar("val x = 5\nval y = 3\nx * y\n") == ["> 15"]
 
 def test_division():
-    resultado = ejecutar("val x = 5\nval y = 3\nx / y\n")
-    assert resultado == ["> 1.6666666666666667"]
+    assert ejecutar("val x = 5\nval y = 3\nx / y\n") == ["> 1.6666666666666667"]
 
 def test_division_por_cero():
     resultado = ejecutar("1 / 0\n")
@@ -46,7 +99,7 @@ def test_potencia():
 def test_potencia_asociatividad_derecha():
     assert ejecutar('2 ^ 3 ^ 2\n') == ["> 512"]
 
-# Precedencia
+# ── Precedencia ───────────────────────────────────────────────
 
 def test_precedencia_suma_multiplicacion():
     assert ejecutar("2 + 3 * 4\n") == ["> 14"]
@@ -62,18 +115,15 @@ def test_precedencia_aritmetica_no_mezcla_logica_error():
     assert any("Error de tipos" in r for r in resultado)
 
 def test_precedencia_comparacion_con_aritmetica():
-    # 2 + 3 > 4 debe evaluarse como (2+3) > 4 = True
     assert ejecutar('2 + 3 > 4\n') == ["> True"]
 
 def test_precedencia_logica_con_comparacion():
-    # 3 > 2 && 1 < 5 debe evaluarse como (3>2) && (1<5) = True
     assert ejecutar('3 > 2 && 1 < 5\n') == ["> True"]
 
-# Variables 
+# ── Variables ─────────────────────────────────────────────────
 
 def test_val_inmutable():
-    resultado = ejecutar("val x = 10\nx\n")
-    assert resultado == ["> 10"]
+    assert ejecutar("val x = 10\nx\n") == ["> 10"]
 
 def test_val_no_reasignable():
     resultado = ejecutar("val x = 1\nval x = 2\n")
@@ -101,7 +151,7 @@ def test_val_no_reasignable_con_asignacion():
 def test_var_si_reasignable():
     assert ejecutar('var x = 1\nx = 5\nprint(x)\n') == ["5"]
 
-# Strings 
+# ── Strings ───────────────────────────────────────────────────
 
 def test_string():
     assert ejecutar('"hola"\n') == ['> hola']
@@ -109,8 +159,7 @@ def test_string():
 def test_string_concatenacion():
     assert ejecutar('"hola" + " risco"\n') == ['> hola risco']
 
-
-#  Booleanos
+# ── Booleanos ─────────────────────────────────────────────────
 
 def test_booleano_true():
     assert ejecutar("true\n") == ["> True"]
@@ -121,8 +170,7 @@ def test_booleano_false():
 def test_not_logico():
     assert ejecutar("!true\n") == ["> False"]
 
-
-# Listas
+# ── Listas ────────────────────────────────────────────────────
 
 def test_lista():
     assert ejecutar("[1, 2, 3]\n") == ["> [1, 2, 3]"]
@@ -130,8 +178,7 @@ def test_lista():
 def test_lista_vacia():
     assert ejecutar("[]\n") == ["> []"]
 
-
-# For
+# ── For ───────────────────────────────────────────────────────
 
 def test_for_lista():
     codigo = "val nums = [1, 2, 3]\nfor n in nums:\n    n\nend\n"
@@ -142,17 +189,16 @@ def test_for_string():
     assert ejecutar(codigo) == ["> a", "> b"]
 
 def test_for_variable_no_existe_fuera():
-    # Después del for, n no debe existir
     codigo = "val nums = [1]\nfor n in nums:\n    n\nend\nn\n"
     lineas = ejecutar(codigo)
-    assert "> 1" in lineas       # dentro del for sí imprime
-    assert lineas[-1] != "> 1"   # fuera del for no vuelve a imprimir
+    assert "> 1" in lineas
+    assert lineas[-1] != "> 1"
 
 def test_for_anidado():
     codigo = 'val a = [1, 2]\nval b = [3, 4]\nfor x in a:\n    for y in b:\n        print(x + y)\n    end\nend\n'
     assert ejecutar(codigo) == ["4", "5", "5", "6"]
 
-# In como expresión de comparacion
+# ── In como expresión ─────────────────────────────────────────
 
 def test_in_verdadero():
     codigo = 'val frutas = ["pera", "uva"]\n"pera" in frutas\n'
@@ -166,7 +212,7 @@ def test_in_numero():
     codigo = "val nums = [1, 2, 3]\n2 in nums\n"
     assert ejecutar(codigo) == ["> True"]
 
-# Print
+# ── Print ─────────────────────────────────────────────────────
 
 def test_print_string():
     assert ejecutar('print("hola")\n') == ["hola"]
@@ -192,73 +238,57 @@ def test_print_expresion():
 def test_print_variable():
     assert ejecutar('val x = 10\nprint(x)\n') == ["10"]
 
-# Validación de tipos con errores
+# ── Errores de tipos ──────────────────────────────────────────
 
 def test_suma_string_numero_error():
-    resultado = ejecutar('"hola" + 3\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('"hola" + 3\n'))
 
 def test_suma_numero_string_error():
-    resultado = ejecutar('3 + "hola"\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('3 + "hola"\n'))
 
 def test_resta_strings_error():
-    resultado = ejecutar('"hola" - "h"\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('"hola" - "h"\n'))
 
 def test_multiplicacion_string_numero_error():
-    resultado = ejecutar('"hola" * 3\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('"hola" * 3\n'))
 
 def test_division_string_error():
-    resultado = ejecutar('"hola" / 2\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('"hola" / 2\n'))
 
 def test_modulo_string_error():
-    resultado = ejecutar('"hola" % 2\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('"hola" % 2\n'))
 
 def test_not_sobre_numero_error():
-    resultado = ejecutar('!5\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('!5\n'))
 
 def test_not_sobre_string_error():
-    resultado = ejecutar('!"hola"\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('!"hola"\n'))
 
 def test_potencia_booleano_error():
-    resultado = ejecutar('true ^ 2\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('true ^ 2\n'))
 
 def test_potencia_string_error():
-    resultado = ejecutar('"hola" ^ 2\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('"hola" ^ 2\n'))
 
 def test_suma_con_null_error():
-    resultado = ejecutar('null + 1\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('null + 1\n'))
 
 def test_suma_booleanos_error():
-    resultado = ejecutar('true + false\n')
-    assert any("no está definido para Bool" in r for r in resultado)
+    assert any("no está definido para Bool" in r for r in ejecutar('true + false\n'))
 
 def test_suma_bool_numero_error():
-    resultado = ejecutar('true + 1\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('true + 1\n'))
 
 def test_numero_mas_bool_error():
-    resultado = ejecutar('1 + true\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('1 + true\n'))
 
 def test_resta_bool_error():
-    resultado = ejecutar('true - 1\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('true - 1\n'))
 
 def test_in_derecha_invalida():
-    resultado = ejecutar('1 in 5\n')
-    assert any("Error" in r for r in resultado)
+    assert any("Error" in r for r in ejecutar('1 in 5\n'))
 
-# Operaciones válidas con tipos correctos
+# ── Tipos válidos ─────────────────────────────────────────────
 
 def test_suma_strings_valida():
     assert ejecutar('"hola" + " mundo"\n') == ["> hola mundo"]
@@ -272,33 +302,22 @@ def test_suma_listas_valida():
 def test_not_booleano_valido():
     assert ejecutar('!false\n') == ["> True"]
 
-# Operadores lógicos — solo operan booleanos
+# ── Operadores lógicos ────────────────────────────────────────
 
 def test_and_no_booleano_error():
-    resultado = ejecutar('5 && true\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('5 && true\n'))
 
 def test_or_no_booleano_error():
-    resultado = ejecutar('5 || true\n')
-    assert any("Error de tipos" in r for r in resultado)
-
-# Igualdad — tipos distintos
+    assert any("Error de tipos" in r for r in ejecutar('5 || true\n'))
 
 def test_igualdad_tipos_distintos_error():
-    resultado = ejecutar('5 == "hola"\n')
-    assert any("Error de tipos" in r for r in resultado)
-
-# Relacionales — solo operan sobre números
+    assert any("Error de tipos" in r for r in ejecutar('5 == "hola"\n'))
 
 def test_relacional_string_error():
-    resultado = ejecutar('"hola" > "mundo"\n')
-    assert any("Error de tipos" in r for r in resultado)
+    assert any("Error de tipos" in r for r in ejecutar('"hola" > "mundo"\n'))
 
 def test_relacional_booleano_error():
-    resultado = ejecutar('true > false\n')
-    assert any("Error de tipos" in r for r in resultado)
-
-# Casos válidos de comparación lógica y relacional
+    assert any("Error de tipos" in r for r in ejecutar('true > false\n'))
 
 def test_and_valido():
     assert ejecutar('true && false\n') == ["> False"]
@@ -315,7 +334,7 @@ def test_igualdad_strings():
 def test_relacional_valido():
     assert ejecutar('5 > 3\n') == ["> True"]
 
-# If/elif/else
+# ── If / elif / else ──────────────────────────────────────────
 
 def test_if_verdadero():
     codigo = 'val x = 5\nif x > 3:\n    print("mayor")\nend\n'
@@ -353,7 +372,7 @@ def test_if_anidado():
     codigo = 'val x = 5\nif x > 0:\n    if x > 3:\n        print("mayor que 3")\n    end\nend\n'
     assert ejecutar(codigo) == ["mayor que 3"]
 
-# While
+# ── While ─────────────────────────────────────────────────────
 
 def test_while_basico():
     codigo = 'var i = 0\nwhile i < 3:\n    print(i)\n    i = i + 1\nend\n'
@@ -375,15 +394,14 @@ def test_while_modifica_variable_externa():
     codigo = 'var x = 10\nwhile x > 0:\n    x = x - 3\nend\nprint(x)\n'
     assert ejecutar(codigo) == ["-2"]
 
-# Extensión Inválida
+# ── Extensión inválida ────────────────────────────────────────
 
 def test_extension_invalida():
-    import tempfile, os
+    import tempfile
     with tempfile.NamedTemporaryFile(suffix='.txt', delete=False) as f:
         f.write(b'val x = 5\n')
         nombre = f.name
     interprete = RISCO()
-    # Capturar que lanza error o imprime advertencia
     resultado = []
     try:
         interprete.ejecutar_archivo(nombre)
@@ -393,58 +411,29 @@ def test_extension_invalida():
         os.unlink(nombre)
     assert len(resultado) > 0
 
-
-# input()
-# Se usa unittest.mock.patch para simular lo que el usuario escribe,
-# ya que input() lee de stdin y no podemos escribir de verdad en los tests.
-
-from unittest.mock import patch
-
-def ejecutar_con_input(codigo, entradas):
-    """
-    Igual que ejecutar() pero simula respuestas del usuario.
-    entradas: lista de strings, uno por cada input() que aparezca en el código.
-    """
-    captura = StringIO()
-    sys.stdout = captura
-    with patch('builtins.input', side_effect=entradas):
-        interprete = RISCO(modo_interactivo=True)
-        interprete._ejecutar_codigo(codigo)
-    sys.stdout = sys.__stdout__
-    return [l.strip() for l in captura.getvalue().strip().splitlines() if l.strip()]
-
+# ── input() ───────────────────────────────────────────────────
 
 def test_input_devuelve_texto():
-    # input() siempre devuelve Text aunque el usuario escriba un número
     codigo = 'val x = input("prompt")\nprint(x)\n'
     assert ejecutar_con_input(codigo, ["hola"]) == ["hola"]
 
 def test_input_prompt_vacio():
-    # input() sin argumento también funciona
     codigo = 'val x = input("")\nprint(x)\n'
     assert ejecutar_con_input(codigo, ["risco"]) == ["risco"]
 
 def test_input_con_casteo_num():
-    # Flujo típico: leer número desde consola con num(input(...))
     codigo = 'val n = num(input("num: "))\nprint(n + 1)\n'
     assert ejecutar_con_input(codigo, ["10"]) == ["11"]
 
 def test_input_con_casteo_decimal():
-    # Leer decimal desde consola
     codigo = 'val d = decimal(input("dec: "))\nprint(d)\n'
     assert ejecutar_con_input(codigo, ["3.14"]) == ["3.14"]
 
 def test_input_multiples():
-    # Varios input() en el mismo programa, cada uno consume una entrada
-    codigo = (
-        'val a = input("a: ")\n'
-        'val b = input("b: ")\n'
-        'print(a + b)\n'
-    )
+    codigo = 'val a = input("a: ")\nval b = input("b: ")\nprint(a + b)\n'
     assert ejecutar_con_input(codigo, ["hola", " risco"]) == ["hola risco"]
 
 def test_input_en_condicional():
-    # La entrada determina qué rama del if se ejecuta
     codigo = (
         'val edad = num(input("edad: "))\n'
         'if edad >= 18:\n'
@@ -457,7 +446,6 @@ def test_input_en_condicional():
     assert ejecutar_con_input(codigo, ["15"]) == ["menor"]
 
 def test_input_en_bucle():
-    # Leer varios valores dentro de un for
     codigo = (
         'val n = num(input("n: "))\n'
         'var i = 0\n'
@@ -469,7 +457,321 @@ def test_input_en_bucle():
     assert ejecutar_con_input(codigo, ["3"]) == ["0", "1", "2"]
 
 def test_input_string_invalido_para_num():
-    # num() sobre texto no numérico devuelve error, no crash
     codigo = 'val x = num(input("val: "))\nprint(x)\n'
     resultado = ejecutar_con_input(codigo, ["abc"])
     assert any("Error" in r or "no se puede" in r.lower() for r in resultado)
+
+
+# ══════════════════════════════════════════════════════════════
+#  MÓDULO MAT — tests unitarios de primitivas (Python puro)
+#
+#  Estas pruebas importan directamente las funciones de nivel
+#  de módulo de visitante_evaluador.py, sin pasar por ANTLR.
+#  Esto las hace instantáneas y fáciles de depurar.
+#
+#  Tolerancias:
+#    cerca(a, b, rel, abs_) →  |a-b| ≤ max(abs_, rel·|b|)
+#    Para valores grandes (ej. exp(100)) se usa error relativo
+#    explícito para evitar falsos negativos por magnitud.
+# ══════════════════════════════════════════════════════════════
+
+# ── _prim_sqrt ────────────────────────────────────────────────
+
+class TestSqrt:
+    """Raíz cuadrada — Newton-Raphson con parada por tolerancia."""
+
+    def test_sqrt_cero(self):
+        assert _prim_sqrt(0) == 0.0
+
+    def test_sqrt_uno(self):
+        assert cerca(_prim_sqrt(1), 1.0)
+
+    def test_sqrt_cuatro(self):
+        assert cerca(_prim_sqrt(4), 2.0)
+
+    def test_sqrt_dos(self):
+        """√2 verificado contra math.sqrt como referencia."""
+        assert cerca(_prim_sqrt(2), math.sqrt(2))
+
+    def test_sqrt_valor_grande(self):
+        """√1e12 = 1e6 exacto en Float64."""
+        assert cerca(_prim_sqrt(1e12), 1e6)
+
+    def test_sqrt_decimal(self):
+        assert cerca(_prim_sqrt(0.25), 0.5)
+
+    def test_sqrt_negativo_devuelve_none(self):
+        """Dominio inválido → None (el visitor convierte esto en Err)."""
+        assert _prim_sqrt(-1) is None
+
+    def test_sqrt_negativo_cualquier_valor(self):
+        assert _prim_sqrt(-100) is None
+
+    def test_sqrt_consistencia_con_math(self):
+        """Verificar contra math.sqrt para un rango representativo."""
+        for x in [0.01, 0.5, 3, 7, 100, 9999.9]:
+            assert cerca(_prim_sqrt(x), math.sqrt(x)), f"Falla en sqrt({x})"
+
+
+# ── _prim_exp ─────────────────────────────────────────────────
+
+class TestExp:
+    """Exponencial — reducción de rango + serie de Taylor."""
+
+    def test_exp_cero(self):
+        assert _prim_exp(0) == 1.0
+
+    def test_exp_uno(self):
+        """e^1 = e."""
+        assert cerca(_prim_exp(1), math.e)
+
+    def test_exp_negativo_uno(self):
+        """e^-1 = 1/e."""
+        assert cerca(_prim_exp(-1), 1.0 / math.e)
+
+    def test_exp_dos(self):
+        assert cerca(_prim_exp(2), math.exp(2))
+
+    def test_exp_diez(self):
+        assert cerca(_prim_exp(10), math.exp(10))
+
+    def test_exp_negativo_diez(self):
+        assert cerca(_prim_exp(-10), math.exp(-10))
+
+    def test_exp_cien(self):
+        """
+        e^100 ≈ 2.688e43. Se mide error relativo para evitar
+        falsos negativos por magnitud del número.
+        """
+        esperado = math.exp(100)
+        resultado = _prim_exp(100)
+        error_relativo = abs(resultado - esperado) / abs(esperado)
+        assert error_relativo < 1e-9, f"Error relativo {error_relativo} > 1e-9"
+
+    def test_exp_negativo_cien(self):
+        assert cerca(_prim_exp(-100), math.exp(-100), rel=1e-9)
+
+    def test_exp_consistencia_con_math(self):
+        for x in [-5.5, -1.0, 0.0, 0.5, 1.0, 5.0, 20.0]:
+            assert cerca(_prim_exp(x), math.exp(x)), f"Falla en exp({x})"
+
+    def test_exp_fraccionario(self):
+        """e^0.5 = √e."""
+        assert cerca(_prim_exp(0.5), math.sqrt(math.e))
+
+
+# ── _prim_log ─────────────────────────────────────────────────
+
+class TestLog:
+    """Logaritmo natural — reducción de rango + arctanh."""
+
+    def test_log_uno(self):
+        assert _prim_log(1.0) == 0.0
+
+    def test_log_e(self):
+        """ln(e) = 1."""
+        assert cerca(_prim_log(math.e), 1.0)
+
+    def test_log_dos(self):
+        """ln(2) debe coincidir con la constante interna _LN2."""
+        assert cerca(_prim_log(2.0), _LN2)
+
+    def test_log_diez(self):
+        assert cerca(_prim_log(10.0), math.log(10.0))
+
+    def test_log_cien(self):
+        assert cerca(_prim_log(100.0), math.log(100.0))
+
+    def test_log_mil(self):
+        """Caso difícil para la serie directa (~200 iter); aquí ≤15."""
+        assert cerca(_prim_log(1000.0), math.log(1000.0))
+
+    def test_log_fraccion(self):
+        """ln(0.5) = -ln(2) = -_LN2."""
+        assert cerca(_prim_log(0.5), -_LN2)
+
+    def test_log_cero_devuelve_none(self):
+        assert _prim_log(0.0) is None
+
+    def test_log_negativo_devuelve_none(self):
+        assert _prim_log(-1.0) is None
+
+    def test_log_consistencia_con_math(self):
+        for x in [0.001, 0.1, 0.5, 1.0, 2.0, math.e, 10.0, 100.0, 1e6]:
+            assert cerca(_prim_log(x), math.log(x)), f"Falla en log({x})"
+
+    def test_log_exp_inversa(self):
+        """Propiedad inversa: ln(e^x) == x."""
+        for x in [-3.0, 0.0, 1.0, 5.0, 10.0]:
+            resultado = _prim_log(_prim_exp(x))
+            assert cerca(resultado, x, abs_=1e-9), f"ln(exp({x})) = {resultado}"
+
+
+# ── _prim_matmul ──────────────────────────────────────────────
+
+class TestMatmul:
+    """Multiplicación matricial A × B — orden i→k→j."""
+
+    def test_matmul_1x1(self):
+        assert matrices_iguales(_prim_matmul([[3.0]], [[4.0]]), [[12.0]])
+
+    def test_matmul_2x2(self):
+        A = [[1, 2], [3, 4]]
+        B = [[5, 6], [7, 8]]
+        assert matrices_iguales(_prim_matmul(A, B), [[19.0, 22.0], [43.0, 50.0]])
+
+    def test_matmul_rectangular(self):
+        """2×3 × 3×2 → 2×2."""
+        A = [[1, 2, 3], [4, 5, 6]]
+        B = [[7, 8], [9, 10], [11, 12]]
+        assert matrices_iguales(_prim_matmul(A, B), [[58.0, 64.0], [139.0, 154.0]])
+
+    def test_matmul_vector_columna(self):
+        """2×2 × 2×1 → 2×1."""
+        A = [[1, 2], [3, 4]]
+        B = [[5], [6]]
+        assert matrices_iguales(_prim_matmul(A, B), [[17.0], [39.0]])
+
+    def test_matmul_identidad(self):
+        """A × I = A."""
+        A = [[1, 2], [3, 4]]
+        I = [[1, 0], [0, 1]]
+        assert matrices_iguales(_prim_matmul(A, I), [[1.0, 2.0], [3.0, 4.0]])
+
+    def test_matmul_dimensiones_incompatibles(self):
+        """cols(A) != filas(B) → None."""
+        assert _prim_matmul([[1, 2]], [[1, 2]]) is None
+
+    def test_matmul_con_ceros(self):
+        A = [[0, 0], [0, 0]]
+        B = [[1, 2], [3, 4]]
+        assert matrices_iguales(_prim_matmul(A, B), [[0.0, 0.0], [0.0, 0.0]])
+
+
+# ── _prim_matmulT ─────────────────────────────────────────────
+
+class TestMatmulT:
+    """Multiplicación A × B^T sin construir la transpuesta."""
+
+    def test_matmulT_basico(self):
+        """
+        A = [[1,2],[3,4]]  B = [[1,2],[3,4]]
+        A × B^T = [[5, 11], [11, 25]]
+        """
+        A = [[1, 2], [3, 4]]
+        B = [[1, 2], [3, 4]]
+        assert matrices_iguales(_prim_matmulT(A, B), [[5.0, 11.0], [11.0, 25.0]])
+
+    def test_matmulT_equivale_a_matmul_transpuesta(self):
+        A = [[1, 2, 3], [4, 5, 6]]          # 2×3
+        B = [[1, 2, 3], [4, 5, 6]]          # 2×3  → B^T es 3×2
+        # mulT(A, B) = A × B^T = (2×3)(3×2) = 2×2
+        C_mulT = _prim_matmulT(A, B)
+        BT = [[B[j][i] for j in range(len(B))] for i in range(len(B[0]))]
+        C_ref = _prim_matmul(A, BT)
+        assert matrices_iguales(C_mulT, C_ref)
+
+    def test_matmulT_dimensiones_incompatibles(self):
+        """cols(A) != cols(B) → None."""
+        assert _prim_matmulT([[1, 2, 3]], [[1, 2]]) is None
+
+    def test_matmulT_1x1(self):
+        assert matrices_iguales(_prim_matmulT([[3.0]], [[4.0]]), [[12.0]])
+
+
+# ── _prim_matmulAdd ───────────────────────────────────────────
+
+class TestMatmulAdd:
+    """A × W + b — capa densa en un solo recorrido."""
+
+    def test_matmulAdd_basico(self):
+        """
+        [[1,2]] × I + [10, 20] = [[11, 22]]
+        """
+        A = [[1.0, 2.0]]
+        W = [[1.0, 0.0], [0.0, 1.0]]
+        b = [10.0, 20.0]
+        assert matrices_iguales(_prim_matmulAdd(A, W, b), [[11.0, 22.0]])
+
+    def test_matmulAdd_equivale_matmul_mas_bias(self):
+        """mulAdd(A,W,b) == mul(A,W) + b elemento a elemento."""
+        A = [[1, 2, 3], [4, 5, 6]]
+        W = [[1, 0], [0, 1], [1, 1]]
+        b = [100.0, 200.0]
+        C_add = _prim_matmulAdd(A, W, b)
+        C_mul = _prim_matmul(A, W)
+        C_ref = [[C_mul[i][j] + b[j] for j in range(len(b))]
+                 for i in range(len(C_mul))]
+        assert matrices_iguales(C_add, C_ref)
+
+    def test_matmulAdd_dimension_incompatible(self):
+        """cols(A) != filas(W) → None."""
+        assert _prim_matmulAdd([[1, 2]], [[1], [2], [3]], [0.0]) is None
+
+    def test_matmulAdd_bias_cero(self):
+        """Con bias cero el resultado es idéntico a matmul."""
+        A = [[1, 2], [3, 4]]
+        W = [[1, 0], [0, 1]]
+        b = [0.0, 0.0]
+        assert matrices_iguales(_prim_matmulAdd(A, W, b), [[1.0, 2.0], [3.0, 4.0]])
+
+
+# ── LCG ───────────────────────────────────────────────────────
+
+class TestLCG:
+    """Generador Congruencial Lineal — parámetros POSIX."""
+
+    def test_lcg_rango(self):
+        """1000 valores consecutivos deben estar en [0.0, 1.0)."""
+        _prim_lcg_seed(0)
+        for _ in range(1000):
+            v = _prim_lcg_next()
+            assert 0.0 <= v < 1.0, f"Valor fuera de rango: {v}"
+
+    def test_lcg_reproducibilidad(self):
+        """La misma semilla siempre produce la misma secuencia."""
+        _prim_lcg_seed(42)
+        seq1 = [_prim_lcg_next() for _ in range(10)]
+        _prim_lcg_seed(42)
+        seq2 = [_prim_lcg_next() for _ in range(10)]
+        assert seq1 == seq2
+
+    def test_lcg_semillas_distintas_dan_secuencias_distintas(self):
+        _prim_lcg_seed(1)
+        seq1 = [_prim_lcg_next() for _ in range(5)]
+        _prim_lcg_seed(2)
+        seq2 = [_prim_lcg_next() for _ in range(5)]
+        assert seq1 != seq2
+
+    def test_lcg_no_todos_iguales(self):
+        """La secuencia no debe ser constante."""
+        _prim_lcg_seed(999)
+        valores = {_prim_lcg_next() for _ in range(20)}
+        assert len(valores) > 1
+
+    def test_lcg_valor_exacto_primer_paso(self):
+        """
+        Semilla 0:
+        siguiente = (1664525·0 + 1013904223) mod 2^32 = 1013904223
+        valor     = 1013904223 / 4294967296
+        """
+        _prim_lcg_seed(0)
+        v = _prim_lcg_next()
+        assert abs(v - 1013904223 / (2 ** 32)) < 1e-15
+
+    def test_lcg_semilla_grande(self):
+        """Semilla > 2^32 se reduce con módulo, igual que semilla 0."""
+        _prim_lcg_seed(0)
+        v_ref = _prim_lcg_next()
+        _prim_lcg_seed(2 ** 33)   # 2^33 mod 2^32 == 0
+        v_test = _prim_lcg_next()
+        assert v_ref == v_test
+
+
+# ── Constante _LN2 ────────────────────────────────────────────
+
+class TestConstanteLN2:
+    """_LN2 debe coincidir con math.log(2) hasta el límite de Float64."""
+
+    def test_ln2_precision(self):
+        assert abs(_LN2 - math.log(2)) < 1e-15
