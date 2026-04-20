@@ -859,7 +859,7 @@ class TestMatRC:
             'val B = [[5,6],[7,8]]\n'
             'print(mat_mul(A, B))\n'
         )
-        assert ejecutar(codigo) == ['[[19.0, 22.0], [43.0, 50.0]]']
+        assert ejecutar(codigo) == ["('ok', [[19.0, 22.0], [43.0, 50.0]])"]
 
     # Seed + random (verificamos reproducibilidad)
     def test_mat_seed_reproducible(self):
