@@ -50,6 +50,23 @@ class RISCO:
 
     def __init__(self,modo_interactivo=False):
         self.visitante = VisitanteEvaluador(modo_interactivo=modo_interactivo)
+        self._cargar_stdlib()
+
+    def _cargar_stdlib(self) -> None:
+        """
+        Carga las librerías estándar de RISCO antes de ejecutar
+        cualquier programa de usuario. Actualmente carga risco/mat.rc
+        que define todas las funciones del módulo mat.
+        """
+        raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        libs = [
+            os.path.join(raiz, 'risco', 'mat.rc'),
+        ]
+        for ruta in libs:
+            if os.path.exists(ruta):
+                with open(ruta, 'r', encoding='utf-8') as f:
+                    codigo = f.read()
+                self._ejecutar_codigo(codigo)
 
     def ejecutar_archivo(self, ruta_archivo: str) -> None:
         """

@@ -1048,23 +1048,23 @@ class VisitanteEvaluador(RISCOVisitor):
         """
         dispatch = {
             # ── Built-ins del lenguaje base ──────────────────
-            'long':       self._builtin_long,
-            'range':      self._builtin_range,
-            'map':        self._builtin_map,
-            'filter':     self._builtin_filter,
-            'reduce':     self._builtin_reduce,
-            'unwrap':     self._builtin_unwrap,
-            'free':       self._builtin_free,
-            'input':      self._builtin_input,
-            # ── Primitivas mat (notación mat.X → mat_X) ──────
-            'mat_sqrt':   self._builtin_mat_sqrt,
-            'mat_exp':    self._builtin_mat_exp,
-            'mat_log':    self._builtin_mat_log,
-            'mat_mul':    self._builtin_mat_mul,
-            'mat_mulT':   self._builtin_mat_mulT,
-            'mat_mulAdd': self._builtin_mat_mulAdd,
-            'mat_seed':   self._builtin_mat_seed,
-            'mat_random': self._builtin_mat_random,
+            'long':               self._builtin_long,
+            'range':              self._builtin_range,
+            'map':                self._builtin_map,
+            'filter':             self._builtin_filter,
+            'reduce':             self._builtin_reduce,
+            'unwrap':             self._builtin_unwrap,
+            'free':               self._builtin_free,
+            'input':              self._builtin_input,
+            # ── Primitivas internas de mat.rc ────────────────
+            'prim_mat_sqrt':      self._builtin_mat_sqrt,
+            'prim_mat_exp':       self._builtin_mat_exp,
+            'prim_mat_log':       self._builtin_mat_log,
+            'prim_mat_matmul':    self._prim_cruda_matmul,
+            'prim_mat_matmulT':   self._builtin_mat_mulT,
+            'prim_mat_matmulAdd': self._builtin_mat_mulAdd,
+            'prim_mat_lcg_next':  self._builtin_prim_lcg_next,
+            'prim_mat_lcg_seed':  self._builtin_mat_seed,
         }
         if nombre in dispatch:
             return dispatch[nombre](args)
@@ -1343,6 +1343,19 @@ class VisitanteEvaluador(RISCOVisitor):
             return ("err", f"mat.mul: dimensiones incompatibles (cols A={cA}, filas B={fB})")
         return ("ok", resultado)
 
+    def _prim_cruda_matmul(self, args):
+        """
+        Versión interna de matmul usada desde mat.rc.
+        Devuelve la lista directamente o None — sin envolver en Result.
+        mat.rc maneja el null con lógica propia.
+        """
+        if len(args) != 2:
+            raise Exception(f"prim_mat_matmul() requiere 2 argumentos")
+        A, B = args
+        if not isinstance(A, list) or not isinstance(B, list):
+            raise Exception("prim_mat_matmul() requiere dos matrices")
+        return _prim_matmul(A, B)
+    
     def _builtin_mat_mulT(self, args):
         """
         mat.mulT(A, B) → Result<[[Decimal]]>
@@ -1404,6 +1417,11 @@ class VisitanteEvaluador(RISCOVisitor):
         _prim_lcg_seed(n)
         return None
 
+    def _builtin_prim_lcg_next(self, args):
+        if len(args) != 0:
+            raise Exception("prim_mat_lcg_next() no recibe argumentos")
+        return _prim_lcg_next()
+    
     def _builtin_mat_random(self, args):
         """
         mat.random(f, c) → [[Decimal]]

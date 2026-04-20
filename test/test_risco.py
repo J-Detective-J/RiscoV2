@@ -775,3 +775,99 @@ class TestConstanteLN2:
 
     def test_ln2_precision(self):
         assert abs(_LN2 - math.log(2)) < 1e-15
+
+
+class TestMatRC:
+    """Tests de mat.rc — funciones escritas en RISCO puro."""
+
+    # Escalares
+    def test_mat_abs_positivo(self):
+        assert ejecutar('print(mat_abs(5))\n') == ['5']
+
+    def test_mat_abs_negativo(self):
+        assert ejecutar('print(mat_abs(-3))\n') == ['3']
+
+    def test_mat_pow(self):
+        assert ejecutar('print(mat_pow(2, 10))\n') == ['1024']
+
+    def test_mat_sqrt_via_risco(self):
+        assert ejecutar('print(mat_sqrt(9.0))\n') == ["('ok', 3.0)"]
+
+    # Estadística
+    def test_mat_sum(self):
+        assert ejecutar('print(mat_sum([1, 2, 3, 4]))\n') == ['10']
+
+    def test_mat_mean(self):
+        assert ejecutar('print(mat_mean([2.0, 4.0, 6.0]))\n') == ['4.0']
+
+    def test_mat_min(self):
+        assert ejecutar('print(mat_min([3, 1, 4, 1, 5]))\n') == ['1']
+
+    def test_mat_max(self):
+        assert ejecutar('print(mat_max([3, 1, 4, 1, 5]))\n') == ['5']
+
+    # Vectores
+    def test_mat_scale(self):
+        assert ejecutar('print(mat_scale(2, [1, 2, 3]))\n') == ['[2, 4, 6]']
+
+    def test_mat_dot(self):
+        assert ejecutar('print(mat_dot([1, 2, 3], [4, 5, 6]))\n') == ['32']
+
+    def test_mat_vadd(self):
+        assert ejecutar('print(mat_vadd([1, 2], [3, 4]))\n') == ['[4, 6]']
+
+    def test_mat_dot_largo_distinto(self):
+        assert ejecutar('print(mat_dot([1, 2], [1, 2, 3]))\n') == ['None']
+
+    # Matrices
+    def test_mat_shape(self):
+        assert ejecutar('print(mat_shape([[1,2],[3,4],[5,6]]))\n') == ['[3, 2]']
+
+    def test_mat_zeros(self):
+        assert ejecutar('print(mat_zeros(2, 3))\n') == ['[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]']
+
+    def test_mat_ones(self):
+        assert ejecutar('print(mat_ones(1, 3))\n') == ['[[1.0, 1.0, 1.0]]']
+
+    def test_mat_identity(self):
+        assert ejecutar('print(mat_identity(2))\n') == ['[[1.0, 0.0], [0.0, 1.0]]']
+
+    def test_mat_T(self):
+        assert ejecutar('print(mat_T([[1,2,3],[4,5,6]]))\n') == ['[[1, 4], [2, 5], [3, 6]]']
+
+    def test_mat_fromList(self):
+        assert ejecutar('print(mat_fromList([1,2,3,4], 2, 2))\n') == ['[[1, 2], [3, 4]]']
+
+    def test_mat_fromList_dimension_invalida(self):
+        assert ejecutar('print(mat_fromList([1,2,3], 2, 2))\n') == ['None']
+
+    def test_mat_get(self):
+        assert ejecutar('val M = [[1,2],[3,4]]\nprint(mat_get(M, 1, 0))\n') == ['3']
+
+    def test_mat_get_fuera_de_rango(self):
+        assert ejecutar('print(mat_get([[1,2]], 5, 0))\n') == ['None']
+
+    def test_mat_row(self):
+        assert ejecutar('print(mat_row([[1,2],[3,4]], 1))\n') == ['[3, 4]']
+
+    def test_mat_col(self):
+        assert ejecutar('print(mat_col([[1,2],[3,4]], 0))\n') == ['[1, 3]']
+
+    def test_mat_mul(self):
+        codigo = (
+            'val A = [[1,2],[3,4]]\n'
+            'val B = [[5,6],[7,8]]\n'
+            'print(mat_mul(A, B))\n'
+        )
+        assert ejecutar(codigo) == ['[[19.0, 22.0], [43.0, 50.0]]']
+
+    # Seed + random (verificamos reproducibilidad)
+    def test_mat_seed_reproducible(self):
+        codigo = (
+            'mat_seed(42)\n'
+            'val a = mat_random(1, 3)\n'
+            'mat_seed(42)\n'
+            'val b = mat_random(1, 3)\n'
+            'print(a == b)\n'
+        )
+        assert ejecutar(codigo) == ['True']
