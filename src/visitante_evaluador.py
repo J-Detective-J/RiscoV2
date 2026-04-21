@@ -1065,6 +1065,14 @@ class VisitanteEvaluador(RISCOVisitor):
             'prim_mat_matmulAdd': self._builtin_mat_mulAdd,
             'prim_mat_lcg_next':  self._builtin_prim_lcg_next,
             'prim_mat_lcg_seed':  self._builtin_mat_seed,
+             # ── Primitivas internas de file.rc ────────────────
+            'prim_file_open':     self._builtin_file_open,
+            'prim_file_close':    self._builtin_file_close,
+            'prim_file_read':     self._builtin_file_read,
+            'prim_file_readLine': self._builtin_file_readLine,
+            'prim_file_write':    self._builtin_file_write,
+            'prim_file_exists':   self._builtin_file_exists,
+            'prim_file_delete':   self._builtin_file_delete
         }
         if nombre in dispatch:
             return dispatch[nombre](args)
@@ -1432,6 +1440,52 @@ class VisitanteEvaluador(RISCOVisitor):
         if f <= 0 or c <= 0:
             raise Exception("mat.random() requiere filas y columnas positivas")
         return [[_prim_lcg_next() for _ in range(c)] for _ in range(f)]
+    
+    def _builtin_file_open(self, args):
+        try:
+            return open(str(args[0]), str(args[1]))
+        except:
+            return None
+
+    def _builtin_file_close(self, args):
+        try:
+            args[0].close()
+        except:
+            pass
+        return None
+
+    def _builtin_file_read(self, args):
+        try:
+            return args[0].read()
+        except:
+            return None
+
+    def _builtin_file_readLine(self, args):
+        try:
+            return args[0].readline()
+        except:
+            return None
+
+    def _builtin_file_write(self, args):
+        try:
+            args[0].write(str(args[1]))
+        except:
+            pass
+        return None
+
+    def _builtin_file_exists(self, args):
+        import os
+        return os.path.exists(str(args[0]))
+
+    def _builtin_file_delete(self, args):
+        import os
+        try:
+            if os.path.exists(str(args[0])):
+                os.remove(str(args[0]))
+                return True
+        except:
+            pass
+        return False
 
     # ══════════════════════════════════════════════════════════
     #  CASTEO EXPLÍCITO

@@ -1,0 +1,2 @@
+Linea 1: Datos guardados por Risco
+Linea 2: El motor de archivos es persistente

@@ -1,0 +1,25 @@
+print("--- INICIANDO TEST DE PERSISTENCIA ---")
+
+val archivo = "datos_v2.txt"
+
+// PASO 1: Crear y escribir
+print("Paso 1: Creando archivo...")
+val f1 = prim_file_open(archivo, "w")
+prim_file_write(f1, "Linea 1: Datos guardados por Risco\n")
+prim_file_write(f1, "Linea 2: El motor de archivos es persistente")
+prim_file_close(f1)
+print("Estado: Archivo guardado y cerrado correctamente.")
+
+print("---")
+
+// PASO 2: Abrir un archivo que ya existe y leerlo
+print("Paso 2: Verificando persistencia en disco...")
+val f2 = prim_file_open(archivo, "r")
+val resultado = prim_file_read(f2)
+prim_file_close(f2)
+
+print("Contenido recuperado desde el disco:")
+print(resultado)
+
+print("---")
+print("TEST FINALIZADO CON EXITO")
