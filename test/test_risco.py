@@ -871,3 +871,139 @@ class TestMatRC:
             'print(a == b)\n'
         )
         assert ejecutar(codigo) == ['True']
+# ── file.rc ───────────────────────────────────────────────────
+# ── file.rc ───────────────────────────────────────────────────
+
+def test_file_writePath_y_readPath():
+    codigo = (
+        'file_writePath("archivo_test.txt", "hola risco")\n'
+        'print(file_readPath("archivo_test.txt"))\n'
+        'print(file_delete("archivo_test.txt"))\n'
+    )
+    resultado = ejecutar(codigo)
+    assert resultado[0] == "hola risco"
+    assert resultado[1] == "True"
+
+def test_file_exists():
+    codigo = (
+        'file_writePath("archivo_exists.txt", "ok")\n'
+        'print(file_exists("archivo_exists.txt"))\n'
+        'print(file_delete("archivo_exists.txt"))\n'
+    )
+    resultado = ejecutar(codigo)
+    assert resultado[0] == "True"
+    assert resultado[1] == "True"
+
+def test_file_readLinesPath():
+    codigo = (
+        'file_writePath("archivo_lineas.txt", "uno\\ndos\\ntres")\n'
+        'print(file_readLinesPath("archivo_lineas.txt"))\n'
+        'print(file_delete("archivo_lineas.txt"))\n'
+    )
+    resultado = ejecutar(codigo)
+    assert resultado[0] == "[uno, dos, tres]"
+    assert resultado[1] == "True"
+
+def test_file_appendLine():
+    codigo = (
+        'file_writePath("archivo_append.txt", "linea1")\n'
+        'file_appendLine("archivo_append.txt", "linea2")\n'
+        'print(file_readPath("archivo_append.txt"))\n'
+        'print(file_delete("archivo_append.txt"))\n'
+    )
+    resultado = ejecutar(codigo)
+    assert "linea1" in resultado[0]
+    assert "linea2" in resultado[0]
+    assert resultado[1] == "True"
+
+def test_file_writeLines():
+    codigo = (
+        'val xs = ["a", "b", "c"]\n'
+        'file_writeLines("archivo_write_lines.txt", xs)\n'
+        'print(file_readLinesPath("archivo_write_lines.txt"))\n'
+        'print(file_delete("archivo_write_lines.txt"))\n'
+    )
+    resultado = ejecutar(codigo)
+    assert resultado[0] == "[a, b, c]"
+    assert resultado[1] == "True"
+
+def test_file_readCSV():
+    codigo = (
+        'file_writePath("archivo_csv.txt", "a,b,c\\n1,2,3\\nx,y,z")\n'
+        'print(file_readCSV("archivo_csv.txt"))\n'
+        'print(file_delete("archivo_csv.txt"))\n'
+    )
+    resultado = ejecutar(codigo)
+    assert resultado[0] == "[[a, b, c], [1, 2, 3], [x, y, z]]"
+    assert resultado[1] == "True"
+
+def test_file_readPath_archivo_inexistente():
+    codigo = 'print(file_readPath("no_existe.txt"))\n'
+    resultado = ejecutar(codigo)
+    assert resultado == ["None"]
+
+def test_file_delete_archivo_inexistente():
+    codigo = 'print(file_delete("no_existe.txt"))\n'
+    resultado = ejecutar(codigo)
+    assert resultado == ["False"]
+
+# ── visual.rc ─────────────────────────────────────────────────
+
+def test_visual_bar_genera_svg():
+    codigo = (
+        'visual_bar(["A","B","C"], [10,20,30], "Barras", "Categoria", "Valor", "bar_test.svg")\n'
+        'print(file_exists("bar_test.svg"))\n'
+        'print(file_readPath("bar_test.svg"))\n'
+        'print(file_delete("bar_test.svg"))\n'
+    )
+    resultado = ejecutar(codigo)
+    assert resultado[0] == "True"
+    assert "<svg" in resultado[1]
+    assert "<rect" in resultado[1]
+    assert "Barras" in resultado[1]
+    assert resultado[2] == "True"
+
+
+def test_visual_line_genera_svg():
+    codigo = (
+        'visual_line([10,20,15,30], "Linea", "X", "Y", "line_test.svg")\n'
+        'print(file_exists("line_test.svg"))\n'
+        'print(file_readPath("line_test.svg"))\n'
+        'print(file_delete("line_test.svg"))\n'
+    )
+    resultado = ejecutar(codigo)
+    assert resultado[0] == "True"
+    assert "<svg" in resultado[1]
+    assert "<polyline" in resultado[1]
+    assert "Linea" in resultado[1]
+    assert resultado[2] == "True"
+
+
+def test_visual_scatter_genera_svg():
+    codigo = (
+        'visual_scatter([1,2,3], [4,5,6], "Scatter", "X", "Y", "scatter_test.svg")\n'
+        'print(file_exists("scatter_test.svg"))\n'
+        'print(file_readPath("scatter_test.svg"))\n'
+        'print(file_delete("scatter_test.svg"))\n'
+    )
+    resultado = ejecutar(codigo)
+    assert resultado[0] == "True"
+    assert "<svg" in resultado[1]
+    assert "<circle" in resultado[1]
+    assert "Scatter" in resultado[1]
+    assert resultado[2] == "True"
+
+
+def test_visual_hist_genera_svg():
+    codigo = (
+        'visual_hist([4,7,10,8,12], "Hist", "Bins", "Frecuencia", "hist_test.svg")\n'
+        'print(file_exists("hist_test.svg"))\n'
+        'print(file_readPath("hist_test.svg"))\n'
+        'print(file_delete("hist_test.svg"))\n'
+    )
+    resultado = ejecutar(codigo)
+    assert resultado[0] == "True"
+    assert "<svg" in resultado[1]
+    assert "<rect" in resultado[1]
+    assert "Hist" in resultado[1]
+    assert resultado[2] == "True"

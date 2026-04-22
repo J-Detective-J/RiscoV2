@@ -1056,6 +1056,7 @@ class VisitanteEvaluador(RISCOVisitor):
             'unwrap':             self._builtin_unwrap,
             'free':               self._builtin_free,
             'input':              self._builtin_input,
+            'split':              self._builtin_split,
             # ── Primitivas internas de mat.rc ────────────────
             'prim_mat_sqrt':      self._builtin_mat_sqrt,
             'prim_mat_exp':       self._builtin_mat_exp,
@@ -1266,6 +1267,24 @@ class VisitanteEvaluador(RISCOVisitor):
             return input(prompt)
         except EOFError:
             return ""
+    def _builtin_split(self, args):
+        """
+        split(texto, separador) → [Text]
+
+        Divide un string usando el separador indicado.
+
+        Ejemplo:
+            split("a,b,c", ",")   → ["a", "b", "c"]
+            split("x\ny", "\n")   → ["x", "y"]
+        """
+        if len(args) != 2:
+            raise Exception(f"split() requiere 2 argumentos, recibió {len(args)}")
+        texto, separador = args
+
+        if not isinstance(texto, str) or not isinstance(separador, str):
+            raise Exception("split() requiere dos Text")
+    
+        return texto.split(separador)
 
     # ── Primitivas mat ────────────────────────────────────────
 

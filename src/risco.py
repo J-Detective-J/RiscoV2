@@ -60,7 +60,9 @@ class RISCO:
         """
         raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         libs = [
-            os.path.join(raiz, 'risco', 'mat.rc'),
+            os.path.join(raiz, 'Risco', 'mat.rc'),
+            os.path.join(raiz, 'Risco', 'file.rc'),
+            os.path.join(raiz, 'Risco', 'visual.rc'),
         ]
         for ruta in libs:
             if os.path.exists(ruta):

@@ -64,3 +64,85 @@ file_exists(path) => prim_file_exists(path)
 
 /// file.delete(path) → Bool
 file_delete(path) => prim_file_delete(path)
+
+// ── GRUPO 5: Alto nivel ────────────────────────────────────────
+
+/// file.readPath(path) → String | null
+/// Abre un archivo por ruta, lee todo su contenido y lo cierra.
+file_readPath(path) =>
+    val f = file_open(path, "r")
+    if f == null:
+        return null
+    end
+    val txt = file_read(f)
+    file_close(f)
+    return txt
+end
+
+/// file.writePath(path, data) → null
+/// Abre un archivo por ruta en modo escritura, escribe y cierra.
+file_writePath(path, data) =>
+    val f = file_open(path, "w")
+    if f == null:
+        return null
+    end
+    file_write(f, data)
+    file_close(f)
+    return null
+end
+
+/// file.appendPath(path, data) → null
+/// Abre un archivo por ruta en modo append, escribe al final y cierra.
+file_appendPath(path, data) =>
+    val f = file_open(path, "a")
+    if f == null:
+        return null
+    end
+    file_write(f, data)
+    file_close(f)
+    return null
+end
+
+/// file.readLinesPath(path) → [String] | null
+/// Lee un archivo completo por ruta y devuelve sus líneas.
+file_readLinesPath(path) =>
+    val txt = file_readPath(path)
+    if txt == null:
+        return null
+    end
+    val partes = split(txt, "\n")
+    if long(partes) > 0 && partes[long(partes) - 1] == "":  
+        return filter(partes, (x) => x != "")
+    end
+    return partes
+end
+
+/// file.writeLines(path, lines) → null
+/// Escribe una lista de líneas en un archivo, una por renglón.
+file_writeLines(path, lines) =>
+    val f = file_open(path, "w")
+    if f == null:
+        return null
+    end
+    for line in lines:
+        file_write(f, line + "\n")
+    end
+    file_close(f)
+    return null
+end
+
+/// file.appendLine(path, data) → null
+/// Agrega una línea al final de un archivo.
+file_appendLine(path, data) =>
+    return file_appendPath(path, data + "\n")
+end
+
+/// file.readCSV(path) → [[String]] | null
+/// Lee un CSV básico separado por comas.
+file_readCSV(path) =>
+    val lines = file_readLinesPath(path)
+    if lines == null:
+        return null
+    end
+    return map(lines, (line) => split(line, ","))
+end
